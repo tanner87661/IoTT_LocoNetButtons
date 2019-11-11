@@ -17,7 +17,7 @@ actionType getActionTypeByName(String actionName)
 { //blockdet, dccswitch, dccsignal, svbutton, analoginp, powerstat
   if (actionName == "block") return blockdet; 
   if (actionName == "switch") return dccswitch;
-  if (actionName == "signal") return dccsignal;
+  if (actionName == "signal") return dccsignalnmra;
   if (actionName == "button") return svbutton;
   if (actionName == "analog") return analoginp;
   if (actionName == "power") return powerstat;
@@ -68,7 +68,7 @@ void IoTT_BtnHandlerCmd::executeBtnEvent()
     switch (targetType)
     {
       case dccswitch: if (sendSwitchCommand) sendSwitchCommand(targetAddr, cmdType, cmdValue); break; //switch
-      case dccsignal: if (sendSignalCommand) sendSignalCommand(targetAddr, cmdValue); break; //signal
+      case dccsignalnmra: if (sendSignalCommand) sendSignalCommand(targetAddr, cmdValue); break; //signal
       case powerstat: if (sendPowerCommand) sendPowerCommand(cmdType, cmdValue); break; //analog
       case blockdet: if (sendBlockDetectorCommand) sendBlockDetectorCommand(targetAddr, cmdValue); break; //analog
     }
