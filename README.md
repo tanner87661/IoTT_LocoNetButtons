@@ -1,7 +1,5 @@
 LocoNet Button Events library for the ESP32 Arduino platform
 
-See video for an example using this library: https://youtu.be/_CXPyHXz_Ys
-
 This library provides a button handler for LocoNet. It receives button event messages as well as analog messages and
 issues action commands, e.g. switch requests, signal aspect commands, etc.
 

@@ -60,6 +60,10 @@ void IoTT_BtnHandlerCmd::loadButtonCfgJSON(JsonObject thisObj)
 	targetAddr = thisObj["CtrlAddr"];
 	cmdType = getCtrlTypeByName(thisObj["CtrlType"]);
 	cmdValue = getCtrlValueByName(thisObj["CtrlValue"]);
+	if (thisObj.containsKey("ExecDelay"))
+		execDelay = thisObj["ExecDelay"];
+	else
+		execDelay = 250;
 }
 
 void IoTT_BtnHandlerCmd::executeBtnEvent()
@@ -109,6 +113,7 @@ void IoTT_BtnHandler::loadButtonCfgJSON(JsonObject thisObj)
 		{
 			IoTT_BtnHandlerCmd * thisCmd = new(IoTT_BtnHandlerCmd);
 			thisCmd->loadButtonCfgJSON(btnCmdList[i]);
+			thisCmd->parentObj = this;
 			cmdList[i] = *thisCmd;
 		}
 	}
@@ -121,11 +126,25 @@ buttonEvent IoTT_BtnHandler::getEventType()
 
 void IoTT_BtnHandler::processBtnEvent()
 {
-//	Serial.println("Call Handler 3");
+    cmdBuffer * thisOutBuffer = &parentObj->parentObj->outBuffer;
+    cmdPtr * lastCmd = &thisOutBuffer->cmdOutBuffer[thisOutBuffer->writePtr];
+    uint8_t thisWritePtr = (thisOutBuffer->writePtr + 1) % cmdBufferLen;
+	uint32_t nextExecTime = lastCmd->execTime;
+	if (lastCmd->nextCommand != NULL)
+		nextExecTime += lastCmd->nextCommand->execDelay;
+    if (nextExecTime < millis())
+		nextExecTime = millis();
 	for (uint16_t i = 0; i < numCmds; i++)
 	{
-		IoTT_BtnHandlerCmd * thisPointer = &cmdList[i];
-		thisPointer->executeBtnEvent();
+		if (thisWritePtr != thisOutBuffer->readPtr) //override protection
+		{
+			IoTT_BtnHandlerCmd * thisPointer = &cmdList[i];
+			thisOutBuffer->cmdOutBuffer[thisWritePtr].nextCommand = thisPointer;
+			thisOutBuffer->cmdOutBuffer[thisWritePtr].execTime = nextExecTime;
+			nextExecTime = nextExecTime + thisPointer->execDelay;
+			thisOutBuffer->writePtr = thisWritePtr;
+			thisWritePtr = (thisWritePtr + 1) % cmdBufferLen;
+		}
 	}
 }
 
@@ -163,6 +182,7 @@ void IoTT_LocoNetButtons::loadButtonCfgJSON(JsonObject thisObj)
 			eventTypeList = (IoTT_BtnHandler*) realloc (eventTypeList, numEvents * sizeof(IoTT_BtnHandler));
 			IoTT_BtnHandler * thisEvent = new(IoTT_BtnHandler);
 			thisEvent->loadButtonCfgJSON(btnCmd[i]);
+			thisEvent->parentObj = this;
 			eventTypeList[i] = *thisEvent;
 		}
 	}
@@ -175,12 +195,10 @@ uint16_t IoTT_LocoNetButtons::getBtnAddr()
 
 void IoTT_LocoNetButtons::processBtnEvent(buttonEvent inputValue)
 {
-//	Serial.printf("Call Handler 2 for event type %i\n", inputValue);
 	lastRecButtonEvent = inputValue;
 	for (uint16_t i = 0; i < numEvents; i++)
 	{
 		IoTT_BtnHandler * thisEvent = &eventTypeList[i];
-//		Serial.printf("Checking %i\n", thisEvent->getEventType()); 
 		if (thisEvent->getEventType() == inputValue)
 		{
 			lastComplButtonEvent = inputValue;
@@ -241,7 +259,23 @@ void IoTT_LocoNetButtonList::loadButtonCfgJSON(DynamicJsonDocument doc)
 		{
 			IoTT_LocoNetButtons * thisButton = new(IoTT_LocoNetButtons);
 			thisButton->loadButtonCfgJSON(ButtonHandlers[i]);
+			thisButton->parentObj = this;
 			btnList[i] = *thisButton;
 		}
 	}
 }
+
+void IoTT_LocoNetButtonList::processButtonHandler()
+{
+//	return;
+	if (outBuffer.readPtr != outBuffer.writePtr)
+	{
+		uint8_t thisCmdPtr = (outBuffer.readPtr + 1) % cmdBufferLen;
+		if (outBuffer.cmdOutBuffer[thisCmdPtr].execTime < millis())
+		{
+			outBuffer.cmdOutBuffer[thisCmdPtr].nextCommand->executeBtnEvent();
+			outBuffer.readPtr = thisCmdPtr;
+		}
+	}
+}
+
